@@ -1,10 +1,22 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import Groq from 'groq-sdk';
 
-const client = new Groq({
-  apiKey: process.env.REACT_APP_GROQ_API_KEY,
-  dangerouslyAllowBrowser: true,
-});
+// ================================
+// GROQ
+// ================================
+
+const groqApiKey = process.env.GROQ_API_KEY;
+
+const client = groqApiKey
+  ? new Groq({
+      apiKey: groqApiKey,
+    })
+  : null;
+
+
+// ================================
+// BASE DE CONHECIMENTO FORD
+// ================================
 
 const fordKnowledgeBase = {
   ranger: {
@@ -14,6 +26,7 @@ const fordKnowledgeBase = {
     torque: '600 Nm',
     cambio: 'Automático de 10 marchas',
     consumoMedio: '9,55 km/L',
+
     tecnologias: [
       'AEB',
       'TPMS nas versões Limited e Limited+',
@@ -29,6 +42,7 @@ const fordKnowledgeBase = {
     nome: 'Ford Territory',
     categoria: 'SUV médio',
     foco: 'conforto, tecnologia, conectividade e uso urbano/familiar',
+
     tecnologias: [
       'central multimídia',
       'assistências ao condutor',
@@ -41,6 +55,7 @@ const fordKnowledgeBase = {
     nome: 'Ford Maverick',
     categoria: 'picape urbana',
     foco: 'uso misto, cidade, estrada e versatilidade',
+
     tecnologias: [
       'caçamba funcional',
       'assistências ao condutor',
@@ -52,6 +67,7 @@ const fordKnowledgeBase = {
     nome: 'Ford Bronco Sport',
     categoria: 'SUV aventureiro',
     foco: 'off-road leve, aventura e tecnologia embarcada',
+
     tecnologias: [
       'modos de condução',
       'tração inteligente',
@@ -63,6 +79,7 @@ const fordKnowledgeBase = {
     nome: 'Ford F-150',
     categoria: 'picape grande',
     foco: 'força, carga, reboque e desempenho',
+
     tecnologias: [
       'motor de alta performance',
       'capacidade de reboque',
@@ -74,6 +91,7 @@ const fordKnowledgeBase = {
     nome: 'Ford Transit',
     categoria: 'veículo comercial',
     foco: 'transporte, carga, operação profissional e frota',
+
     tecnologias: [
       'controle operacional',
       'conectividade',
@@ -85,6 +103,7 @@ const fordKnowledgeBase = {
     nome: 'Ford EcoSport',
     categoria: 'SUV compacto',
     foco: 'uso urbano, praticidade e manutenção acessível',
+
     tecnologias: [
       'posição elevada de dirigir',
       'multimídia em versões equipadas',
@@ -96,6 +115,7 @@ const fordKnowledgeBase = {
     nome: 'Ford Ka',
     categoria: 'hatch/sedan compacto',
     foco: 'economia, cidade e manutenção simples',
+
     tecnologias: [
       'baixo custo de uso',
       'praticidade urbana',
@@ -104,55 +124,130 @@ const fordKnowledgeBase = {
   },
 };
 
+
+// ================================
+// DETECTAR MODELO
+// ================================
+
 function detectFordModel(model?: string) {
   const text = model?.toLowerCase() || '';
 
-  if (text.includes('ranger')) return fordKnowledgeBase.ranger;
-  if (text.includes('territory')) return fordKnowledgeBase.territory;
-  if (text.includes('maverick')) return fordKnowledgeBase.maverick;
-  if (text.includes('bronco')) return fordKnowledgeBase.broncoSport;
-  if (text.includes('f-150') || text.includes('f150')) return fordKnowledgeBase.f150;
-  if (text.includes('transit')) return fordKnowledgeBase.transit;
-  if (text.includes('ecosport')) return fordKnowledgeBase.ecosport;
-  if (text.includes('ka')) return fordKnowledgeBase.ka;
+  if (text.includes('ranger')) {
+    return fordKnowledgeBase.ranger;
+  }
+
+  if (text.includes('territory')) {
+    return fordKnowledgeBase.territory;
+  }
+
+  if (text.includes('maverick')) {
+    return fordKnowledgeBase.maverick;
+  }
+
+  if (text.includes('bronco')) {
+    return fordKnowledgeBase.broncoSport;
+  }
+
+  if (text.includes('f-150') || text.includes('f150')) {
+    return fordKnowledgeBase.f150;
+  }
+
+  if (text.includes('transit')) {
+    return fordKnowledgeBase.transit;
+  }
+
+  if (text.includes('ecosport')) {
+    return fordKnowledgeBase.ecosport;
+  }
+
+  if (text.includes('ka')) {
+    return fordKnowledgeBase.ka;
+  }
 
   return null;
 }
+
+
+// ================================
+// API VERCEL
+// ================================
 
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ) {
+
+  // Apenas POST
   if (req.method !== 'POST') {
     return res.status(405).json({
       error: 'Método não permitido',
     });
   }
 
+
+  // Verifica chave da Groq
+  if (!client) {
+    console.error('GROQ_API_KEY não configurada.');
+
+    return res.status(500).json({
+      error: 'GROQ_API_KEY não está configurada no servidor.',
+    });
+  }
+
+
   try {
+
     const { message, vehicle, fuelHistory } = req.body as {
-      message: string;
+      message?: string;
+
       vehicle?: {
         model?: string;
+        [key: string]: unknown;
       };
-      fuelHistory: unknown;
+
+      fuelHistory?: unknown;
     };
+
+
+    // ================================
+    // VALIDAR MENSAGEM
+    // ================================
+
+    if (!message || typeof message !== 'string') {
+      return res.status(400).json({
+        error: 'Mensagem inválida.',
+      });
+    }
+
+
+    // ================================
+    // DETECTAR CARRO
+    // ================================
 
     const detectedModel = detectFordModel(vehicle?.model);
 
-    const completion = await client.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
 
-      messages: [
-        {
-          role: 'system',
-          content: `
-Você é o AutoPulse AI, um copiloto automotivo inteligente da Ford.
+    // ================================
+    // PROMPT DO AUTOPULSE
+    // ================================
 
-Responda em português do Brasil.
-Use linguagem moderna, natural, objetiva e fácil de entender.
+    const systemPrompt = `
+Você é o AutoPulse AI, um copiloto automotivo inteligente.
+
+Seu objetivo é ajudar usuários com informações sobre veículos Ford,
+manutenção, consumo, custos, viagens e tecnologias automotivas.
+
+Responda sempre em português do Brasil.
+
+Use linguagem:
+- moderna
+- natural
+- objetiva
+- clara
+- fácil de entender
 
 Você pode ajudar com:
+
 - especificações técnicas
 - tecnologias Ford
 - manutenção
@@ -161,45 +256,128 @@ Você pode ajudar com:
 - viagens
 - modos de condução
 - dúvidas gerais sobre carros
+- interpretação do histórico de abastecimento
+- recomendações baseadas nos dados cadastrados
 
-IMPORTANTE:
-- Se o usuário perguntar sobre Ford Ranger, use a base técnica detalhada.
-- Se perguntar sobre outro Ford, use a base geral abaixo.
-- Se não houver especificação exata na base, diga claramente: "não tenho esse dado oficial na base do app", mas ainda ajude com uma explicação geral.
-- Não invente potência, torque, consumo ou equipamentos como se fossem oficiais.
-- Sempre que fizer sentido, use os dados cadastrados pelo usuário.
 
-Base geral Ford:
+REGRAS IMPORTANTES:
+
+1. Se o usuário perguntar sobre Ford Ranger,
+utilize prioritariamente os dados técnicos existentes na base.
+
+2. Para outros veículos Ford,
+utilize as informações disponíveis na base geral.
+
+3. Nunca invente potência, torque, consumo,
+equipamentos ou especificações como se fossem dados oficiais.
+
+4. Quando uma informação exata não estiver disponível,
+diga claramente:
+
+"Não tenho esse dado oficial na base do app."
+
+Depois disso, você pode fornecer uma orientação geral,
+deixando claro que se trata de uma estimativa ou explicação geral.
+
+5. Sempre que possível, utilize os dados cadastrados
+pelo próprio usuário para personalizar a resposta.
+
+6. Quando houver histórico de abastecimento,
+analise esses dados quando forem relevantes para a pergunta.
+
+7. Não diga que possui acesso em tempo real aos sistemas da Ford.
+
+8. Não diga que consultou dados externos se eles não foram
+fornecidos no contexto.
+
+
+==============================
+BASE GERAL FORD
+==============================
+
 ${JSON.stringify(fordKnowledgeBase, null, 2)}
 
-Modelo detectado pelo cadastro:
+
+==============================
+MODELO DETECTADO
+==============================
+
 ${JSON.stringify(detectedModel, null, 2)}
 
-Dados cadastrados pelo usuário:
-${JSON.stringify(vehicle, null, 2)}
 
-Histórico de abastecimento:
-${JSON.stringify(fuelHistory, null, 2)}
-`,
+==============================
+DADOS DO VEÍCULO DO USUÁRIO
+==============================
+
+${JSON.stringify(vehicle ?? null, null, 2)}
+
+
+==============================
+HISTÓRICO DE ABASTECIMENTO
+==============================
+
+${JSON.stringify(fuelHistory ?? [], null, 2)}
+`;
+
+
+    // ================================
+    // CHAMADA PARA GROQ
+    // ================================
+
+    const completion = await client.chat.completions.create({
+
+      // Modelo disponível na Groq
+      model: 'openai/gpt-oss-20b',
+
+      messages: [
+        {
+          role: 'system',
+          content: systemPrompt,
         },
+
         {
           role: 'user',
           content: message,
         },
       ],
+
+      temperature: 0.6,
+
+      max_tokens: 1000,
     });
+
+
+    // ================================
+    // RESPOSTA
+    // ================================
+
+    const response =
+      completion.choices?.[0]?.message?.content;
+
+
+    if (!response) {
+      return res.status(500).json({
+        error: 'A IA não retornou uma resposta.',
+      });
+    }
+
 
     return res.status(200).json({
-      response: completion.choices[0].message.content,
+      response,
     });
+
   } catch (error: unknown) {
-    console.error(error);
+
+    console.error('Erro AutoPulse AI:', error);
+
+    const message =
+      error instanceof Error
+        ? error.message
+        : 'Erro desconhecido ao consultar a IA.';
+
 
     return res.status(500).json({
-      error:
-        error instanceof Error
-          ? error.message
-          : 'Erro Groq',
+      error: message,
     });
   }
 }
