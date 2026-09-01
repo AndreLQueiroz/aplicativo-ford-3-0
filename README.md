@@ -108,3 +108,9 @@ A aplicação foi organizada de forma modular, separando páginas, componentes, 
 https://www.youtube.com/watch?v=YNsp_7bQ7BA
 
 ---
+
+## 📱 Download do APK
+
+A versão Android do AutoPulse está disponível para download:
+
+👉 [Baixar AutoPulse APK](https://drive.google.com/file/d/19a1C4_hEWeBHnqPz33WV-kPTiQgrQ1Y5/view?usp=drive_link)
